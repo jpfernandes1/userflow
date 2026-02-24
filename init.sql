@@ -1,0 +1,2 @@
+CREATE DATABASE ms_user;
+CREATE DATABASE ms_email;
