@@ -8,6 +8,8 @@ public class EmailSenderApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(EmailSenderApplication.class, args);
+		System.out.println(System.getenv("SPRING_PROFILES_ACTIVE"));
+
 	}
 
 }
