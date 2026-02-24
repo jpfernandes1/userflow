@@ -1,6 +1,7 @@
 package com.jompastech.emailSender.configuration;
 
 import org.springframework.amqp.core.Queue;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
@@ -10,6 +11,7 @@ public class RabbitMq {
     // 1ª queue
     private final String queueName = "email-queue";
 
+    @Bean
     public Queue queue(){
         return new Queue(queueName, true);
     }
