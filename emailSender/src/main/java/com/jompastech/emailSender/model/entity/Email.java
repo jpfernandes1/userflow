@@ -25,6 +25,7 @@ public class Email {
     private String emailSubject;
     private String emailBody;
     private LocalDateTime sendDateEmail;
+    @Enumerated(EnumType.STRING)
     private EmailStatus emailStatus;
 
 }
