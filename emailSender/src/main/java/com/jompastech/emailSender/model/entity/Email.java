@@ -16,8 +16,6 @@ import java.util.UUID;
 @NoArgsConstructor
 public class Email {
 
-    private final long serialVersionUID = 1L;
-
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID emailId;
@@ -27,6 +25,6 @@ public class Email {
     private String emailSubject;
     private String emailBody;
     private LocalDateTime sendDateEmail;
-    private EmailStatus emailstatus;
+    private EmailStatus emailStatus;
 
 }
