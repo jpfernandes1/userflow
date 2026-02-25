@@ -23,6 +23,6 @@ public class EmailConsumer {
         Email email = EmailMapper.toEntity(event);
 
         emailRepository.save(email);
-        System.out.println("Email enviado e salvo com sucesso");
+        System.out.println("Email sent and saved successfully.");
      }
 }
