@@ -18,6 +18,8 @@ public class Email {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
+    @Column(unique = true, nullable = false)
+    private UUID eventId;
     private UUID emailId;
     private UUID userId;
     private String emailFrom;
@@ -27,5 +29,6 @@ public class Email {
     private LocalDateTime sendDateEmail;
     @Enumerated(EnumType.STRING)
     private EmailStatus emailStatus;
+    private String errorMessage;
 
 }

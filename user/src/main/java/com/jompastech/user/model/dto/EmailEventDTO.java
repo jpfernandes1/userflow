@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.UUID;
 
 public record EmailEventDTO(
+        UUID eventId,
         UUID userId,
         String emailFrom,
         String emailTo,

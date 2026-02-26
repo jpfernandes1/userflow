@@ -85,6 +85,7 @@ public class UserService {
     private void sendEmailEvent(User user, String subject, String body, String eventType) {
         emailPublisher.publish(
                 new EmailEventDTO(
+                        UUID.randomUUID(),
                         user.getId(),
                         "no-reply@system.com",
                         user.getEmail(),
