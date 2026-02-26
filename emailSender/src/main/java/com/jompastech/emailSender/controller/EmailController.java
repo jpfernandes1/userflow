@@ -31,4 +31,9 @@ public class EmailController {
     public void deleteEmail(@PathVariable UUID id) {
         emailService.deleteById(id);
     }
+
+    @PostMapping("/emails/{id}/retry")
+    public EmailResponseDTO retryEmail(@PathVariable UUID id) {
+        return emailService.retryEmail(id);
+    }
 }
