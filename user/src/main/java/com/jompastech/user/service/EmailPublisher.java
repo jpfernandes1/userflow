@@ -2,6 +2,7 @@ package com.jompastech.user.service;
 
 import com.jompastech.user.config.RabbitMq;
 import com.jompastech.user.model.dto.EmailEventDTO;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,10 +16,15 @@ public class EmailPublisher {
     }
 
     public void publish(EmailEventDTO event){
+
+        CorrelationData correlationData =
+                new CorrelationData(event.eventId().toString());
+
         rabbitTemplate.convertAndSend(
                 RabbitMq.EXCHANGE,
                 RabbitMq.ROUTING_KEY,
-                event
+                event,
+                correlationData
         );
     }
 }
