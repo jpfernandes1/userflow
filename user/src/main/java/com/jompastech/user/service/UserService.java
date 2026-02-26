@@ -2,9 +2,13 @@ package com.jompastech.user.service;
 
 import com.jompastech.user.model.dto.EmailEventDTO;
 import com.jompastech.user.model.dto.UserDTO;
+import com.jompastech.user.model.entity.OutboxEvent;
 import com.jompastech.user.model.entity.User;
+import com.jompastech.user.repository.OutboxRepository;
 import com.jompastech.user.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.UUID;
@@ -13,33 +17,36 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final EmailPublisher emailPublisher;
+    private final OutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
-    public UserService(UserRepository repository, EmailPublisher emailPublisher) {
-        this.userRepository = repository;
-        this.emailPublisher = emailPublisher;
+    public UserService(UserRepository userRepository,
+                       OutboxRepository outboxRepository,
+                       ObjectMapper objectMapper) {
+        this.userRepository = userRepository;
+        this.outboxRepository = outboxRepository;
+        this.objectMapper = objectMapper;
     }
 
     public List<User> getAll(){
         return userRepository.findAll();
     }
 
-    // getById
-    public User getById(UUID id){
+    public User getById(UUID id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Email not found"));
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
-    // Create
-    public User createUser(UserDTO userDTO){
+
+    @Transactional
+    public User createUser(UserDTO userDTO) {
         User user = new User();
         user.setName(userDTO.getName());
         user.setEmail(userDTO.getEmail());
 
         User savedUser = userRepository.save(user);
 
-        // Send the event to email-service queue
-        sendEmailEvent(
+        createOutboxEvent(
                 savedUser,
                 "Welcome!",
                 "Your account has been created successfully!",
@@ -48,22 +55,8 @@ public class UserService {
         return savedUser;
     }
 
-    // Delete
-    public void deleteUser(UUID id){
-        User user = userRepository.findById(id)
-                        .orElseThrow(() -> new RuntimeException("User not found"));
-
-        userRepository.deleteById(id);
-        sendEmailEvent(
-                user,
-                "Account removed",
-                "Your account has been removed successfully",
-                "USER_DELETED"
-        );
-    }
-
-    // Update
-    public User updateUser(UUID id, UserDTO dto){
+    @Transactional
+    public User updateUser(UUID id, UserDTO dto) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -72,28 +65,61 @@ public class UserService {
 
         User updatedUser = userRepository.save(user);
 
-        sendEmailEvent(
+        createOutboxEvent(
                 updatedUser,
                 "Data updated",
-                "Your data has been updated succesfully!",
+                "Your data has been updated successfully!",
                 "USER_UPDATED"
         );
         return updatedUser;
     }
 
+    @Transactional
+    public void deleteUser(UUID id) {
 
-    private void sendEmailEvent(User user, String subject, String body, String eventType) {
-        emailPublisher.publish(
-                new EmailEventDTO(
-                        UUID.randomUUID(),
-                        user.getId(),
-                        "no-reply@system.com",
-                        user.getEmail(),
-                        subject,
-                        body,
-                        eventType
-                )
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        userRepository.deleteById(id);
+
+        createOutboxEvent(
+                user,
+                "Account removed",
+                "Your account has been removed successfully",
+                "USER_DELETED"
         );
     }
 
+    // OUTBOX CREATOR
+    private void createOutboxEvent(User user,
+                                   String subject,
+                                   String body,
+                                   String eventType) {
+
+        try {
+            EmailEventDTO event = new EmailEventDTO(
+                    UUID.randomUUID(), // eventId
+                    user.getId(),
+                    "no-reply@system.com",
+                    user.getEmail(),
+                    subject,
+                    body,
+                    eventType
+            );
+
+            String payload = objectMapper.writeValueAsString(event);
+
+            OutboxEvent outbox = new OutboxEvent();
+            outbox.setAggregateType("USER");
+            outbox.setAggregateId(user.getId());
+            outbox.setEventType(eventType);
+            outbox.setPayload(payload);
+            outbox.setProcessed(false);
+
+            outboxRepository.save(outbox);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create outbox event", e);
+        }
+    }
 }
