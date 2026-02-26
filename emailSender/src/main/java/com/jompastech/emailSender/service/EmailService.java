@@ -10,6 +10,7 @@ import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,18 +28,20 @@ public class EmailService {
 
     public void processEmailEvent(EmailEventDTO event) {
 
-        if (emailRepository.findByEventId(event.eventId()).isPresent()) {
-            log.warn("Event {} already processed. Ignoring.", event.eventId());
+        log.info("Received email event {}", event.eventId());
+
+        Email email = EmailMapper.toEntity(event);
+        email.setEmailStatus(EmailStatus.PENDING);
+
+        try {
+            email = emailRepository.save(email);
+
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate event detected: {}", event.eventId());
             return;
         }
 
-        log.info("Received email event for userId: {}", event.userId());
-        Email email = EmailMapper.toEntity(event);
-        email.setEmailStatus(EmailStatus.PENDING);
-        email = emailRepository.save(email);
-
         try {
-
             email.setEmailStatus(EmailStatus.PROCESSING);
             emailRepository.save(email);
             sendEmail(email);
@@ -47,9 +50,8 @@ public class EmailService {
         } catch (Exception e) {
             email.setEmailStatus(EmailStatus.FAILED);
             log.error("Failed to send email to {}", email.getEmailTo(), e);
-            throw e; // let Rabbit handle retry
+            throw e; // keeps rabbit retry
         }
-
         emailRepository.save(email);
     }
 
