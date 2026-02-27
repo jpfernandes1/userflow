@@ -8,6 +8,7 @@ import com.jompastech.emailSender.model.event.EmailEventDTO;
 import com.jompastech.emailSender.repository.EmailRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -25,6 +26,10 @@ public class EmailService {
     private final Counter emailSuccessCounter;
     private final Counter emailAttemptFailureCounter;
     private final Counter emailFinalFailureCounter;
+    private final Timer emailSuccessTimer;
+    private final Timer emailFailureTimer;
+    private final Timer emailSendSuccessTimer;
+    private final Timer emailSendFailureTimer;
 
     public void incrementFinalFailure() {
         emailFinalFailureCounter.increment();
@@ -47,37 +52,78 @@ public class EmailService {
                 Counter.builder("email.process.final.failure")
                         .description("Emails that ended in DLQ")
                         .register(registry);
+        this.emailSuccessTimer =
+                Timer.builder("email.process.duration")
+                        .description("Email processing duration")
+                        .tag("status", "success")
+                        .register(registry);
+
+        this.emailFailureTimer =
+                Timer.builder("email.process.duration")
+                        .description("Email processing duration")
+                        .tag("status", "failure")
+                        .register(registry);
+        this.emailSendSuccessTimer =
+                Timer.builder("email.send.duration")
+                        .description("Email sending duration")
+                        .tag("status", "success")
+                        .register(registry);
+
+        this.emailSendFailureTimer =
+                Timer.builder("email.send.duration")
+                        .description("Email sending duration")
+                        .tag("status", "failure")
+                        .register(registry);
     }
 
     public void processEmailEvent(EmailEventDTO event) {
 
-        log.info("Received email event {}", event.eventId());
-
-        Email email = EmailMapper.toEntity(event);
-        email.setEmailStatus(EmailStatus.PENDING);
+        Timer.Sample sample = Timer.start();
 
         try {
-            email = emailRepository.save(email);
 
-        } catch (DataIntegrityViolationException e) {
-            log.warn("Duplicate event detected: {}", event.eventId());
-            return;
-        }
+            log.info("Received email event {}", event.eventId());
 
-        try {
-            email.setEmailStatus(EmailStatus.PROCESSING);
-            emailRepository.save(email);
-            sendEmail(email);
-            email.setEmailStatus(EmailStatus.SENT);
-            emailSuccessCounter.increment();
+            Email email = EmailMapper.toEntity(event);
+            email.setEmailStatus(EmailStatus.PENDING);
 
+            try {
+                email = emailRepository.save(email);
+
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Duplicate event detected: {}", event.eventId());
+                return;
+            }
+
+            try {
+                email.setEmailStatus(EmailStatus.PROCESSING);
+                emailRepository.save(email);
+
+                Timer.Sample sendSample = Timer.start();
+                try {
+                    sendEmail(email);
+                    sendSample.stop(emailSendSuccessTimer);
+                } catch (Exception ex){
+                    sendSample.stop((emailSendFailureTimer));
+                    throw ex;
+                }
+                email.setEmailStatus(EmailStatus.SENT);
+                emailSuccessCounter.increment();
+                emailRepository.save(email);
+                sample.stop(emailSuccessTimer);
+
+            } catch (Exception e) {
+
+                email.setEmailStatus(EmailStatus.FAILED);
+                log.error("Failed to send email to {}", email.getEmailTo(), e);
+                emailAttemptFailureCounter.increment();
+                emailRepository.save(email);
+                sample.stop(emailFailureTimer);
+                throw e; // keeps rabbit retry
+            }
         } catch (Exception e) {
-            email.setEmailStatus(EmailStatus.FAILED);
-            log.error("Failed to send email to {}", email.getEmailTo(), e);
-            emailAttemptFailureCounter.increment();
-            throw e; // keeps rabbit retry
+            throw e;
         }
-        emailRepository.save(email);
     }
 
     public List<EmailResponseDTO> findAll(){
