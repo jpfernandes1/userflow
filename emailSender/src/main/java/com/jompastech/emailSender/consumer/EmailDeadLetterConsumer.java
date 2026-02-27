@@ -4,9 +4,10 @@ import com.jompastech.emailSender.configuration.RabbitMq;
 import com.jompastech.emailSender.model.event.EmailEventDTO;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.stereotype.Component;
 
 @Component
 public class EmailDeadLetterConsumer {
@@ -17,9 +18,14 @@ public class EmailDeadLetterConsumer {
     @RabbitListener(queues = RabbitMq.DLQ)
     public void handleDeadLetter(EmailEventDTO event, Message message) {
 
-        log.error("DLQ message received for userId: {}", event.userId());
+        try {
+            MDC.put("eventId", event.eventId().toString());
+            log.error("Message moved to DLQ");
+            var headers = message.getMessageProperties().getHeaders();
+            log.error("x-death header: {}", headers.get("x-death"));
 
-        var headers = message.getMessageProperties().getHeaders();
-        log.error("x-death: {}", headers.get("x-death"));
+        } finally {
+            MDC.clear();
+        }
     }
 }

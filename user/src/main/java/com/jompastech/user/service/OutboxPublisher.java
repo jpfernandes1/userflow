@@ -7,6 +7,7 @@ import com.jompastech.user.model.entity.OutboxEvent;
 import com.jompastech.user.repository.OutboxRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -45,15 +46,19 @@ public class OutboxPublisher {
 
         for (OutboxEvent event : events) {
 
+            EmailEventDTO dto = null;
+
             try {
 
-                // Convert stored JSON to DTO
-                EmailEventDTO dto = objectMapper.readValue(
+                dto = objectMapper.readValue(
                         event.getPayload(),
                         EmailEventDTO.class
                 );
 
-                // Use eventId as correlationId
+                MDC.put("eventId", dto.eventId().toString());
+
+                log.info("Publishing outbox event");
+
                 CorrelationData correlationData =
                         new CorrelationData(dto.eventId().toString());
 
@@ -67,16 +72,14 @@ public class OutboxPublisher {
                 event.setProcessed(true);
                 outboxRepository.save(event);
 
-                log.info("Outbox event {} published successfully",
-                        event.getId());
+                log.info("Outbox event successfully sent to exchange");
 
             } catch (Exception e) {
 
-                log.error("Failed to publish outbox event {}",
-                        event.getId(), e);
+                log.error("Failed to publish outbox event", e);
 
-                // Do NOT mark as processed.
-                // It will retry on next scheduler cycle.
+            } finally {
+                MDC.clear();
             }
         }
     }
