@@ -56,23 +56,31 @@ public class EmailService {
                 Timer.builder("email.process.duration")
                         .description("Email processing duration")
                         .tag("status", "success")
+                        .publishPercentileHistogram()
+                        .publishPercentiles(0.5, 0.95, 0.99)
                         .register(registry);
 
         this.emailFailureTimer =
                 Timer.builder("email.process.duration")
                         .description("Email processing duration")
                         .tag("status", "failure")
+                        .publishPercentileHistogram()
+                        .publishPercentiles(0.5, 0.95, 0.99)
                         .register(registry);
         this.emailSendSuccessTimer =
                 Timer.builder("email.send.duration")
                         .description("Email sending duration")
                         .tag("status", "success")
+                        .publishPercentileHistogram()
+                        .publishPercentiles(0.5, 0.95, 0.99)
                         .register(registry);
 
         this.emailSendFailureTimer =
                 Timer.builder("email.send.duration")
                         .description("Email sending duration")
                         .tag("status", "failure")
+                        .publishPercentileHistogram()
+                        .publishPercentiles(0.5, 0.95, 0.99)
                         .register(registry);
     }
 
